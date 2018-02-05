@@ -79,7 +79,6 @@ function getLatencies() {
       // Final record
       if(SLPACKET === "SLINFO  ") {
 
-console.log("update")
         // Update the global variable
         GLOBAL_LATENCIES = parseRecords(records);
 
