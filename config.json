@@ -1,0 +1,7 @@
+{
+  "PORT": 3001,
+  "HOST": "127.0.0.1",
+  "SEEDLINK_HOST": "eida.orfeus-eu.org",
+  "SEEDLINK_PORT": 18000,
+  "REFRESH_INTERVAL": 60000
+}
