@@ -1,6 +1,6 @@
 const Network = require("net");
 const Libxmljs = require("libxmljs");
-const Record = require("./Record");
+const Record = require("./lib/Record");
 const Http = require("http");
 const CONFIG = require("./config");
 
