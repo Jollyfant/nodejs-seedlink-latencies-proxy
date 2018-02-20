@@ -7,6 +7,7 @@ const ALLOWED_PARAMETERS = ["network","station","location","channel"];
 
 // Global container for latencies
 var GLOBAL_LATENCIES = null;
+var url = require('url');
 
 module.exports = function(callback) {
   // Refresh latency information
@@ -14,7 +15,6 @@ module.exports = function(callback) {
 
   // Create a HTTP server
   const Server = Http.createServer(function(request, response) {
-    var url = require('url');
     var url_parts = url.parse(request.url, true);
     var query = url_parts.query;
 
@@ -64,34 +64,26 @@ module.exports = function(callback) {
 }
 
 function filterLatencies(query, filter_object) {
-
   var result = GLOBAL_LATENCIES;
 
   if (filter_object['network']) {
-    result = result.filter(function(x) {return eval(createCommandString(query, filter_object, 'network'))})
+    requestedNetworks = query["network"].split(","); 
+    result = result.filter(function(x) {return requestedNetworks.indexOf(x.network) !== -1})
   }
   if (filter_object['station']) {
-    result = result.filter(function(x) {return eval(createCommandString(query, filter_object, 'station'))})
+    requestedStations = query["station"].split(",");
+    result = result.filter(function(x) {return requestedStations.indexOf(x.station) !== -1})
   }
   if (filter_object['location']) {
-    result = result.filter(function(x) {return x.location == query['location']})
+    requestedLocations = query["location"].split(",");
+    result = result.filter(function(x) {return requestedLocations.indexOf(x.location) !== -1})
   }
   if (filter_object['channel']) {
-    result = result.filter(function(x) {return x.channel == query['channel']})
+    requestedChannels = query["channel"].split(",");
+    result = result.filter(function(x) {return requestedChannels.indexOf(x.channel) !== -1})
   }
 
   return result
-}
-
-function createCommandString(query, filter_object, level){
-
-  command_string = "x." + level + " == '" + query[level].split(",")[0] + "'"
-
-  for (i = 1; i < query[level].split(",").length; i++) {
-    command_string = command_string + " || x." + level + " == '" + query[level].split(",")[i] + "'"
-  }
-
-  return command_string
 }
 
 function getLatencies() {
