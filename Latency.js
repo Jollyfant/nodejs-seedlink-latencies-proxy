@@ -46,7 +46,7 @@ module.exports = function(callback) {
   const Server = Http.createServer(function(request, response) {
 
     response.setHeader("Access-Control-Allow-Origin", "*");
-    response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+    response.setHeader("Access-Control-Allow-Methods", "GET");
 
     var uri = url.parse(request.url);
 
