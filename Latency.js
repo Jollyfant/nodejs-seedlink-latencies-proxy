@@ -3,17 +3,20 @@ const Libxmljs = require("libxmljs");
 const Record = require("./lib/Record");
 const Http = require("http");
 const CONFIG = require("./config");
+const ALLOWED_PARAMETERS = ["network","station","location","channel"];
 
 // Global container for latencies
 var GLOBAL_LATENCIES = null;
+var url = require('url');
 
 module.exports = function(callback) {
-
   // Refresh latency information
   setInterval(getLatencies, CONFIG.REFRESH_INTERVAL);
 
   // Create a HTTP server
   const Server = Http.createServer(function(request, response) {
+    var url_parts = url.parse(request.url, true);
+    var query = url_parts.query;
 
     // Write 204 No Content
     if(GLOBAL_LATENCIES === null) {
@@ -21,11 +24,31 @@ module.exports = function(callback) {
       response.end();
       return;
     }
+    
+    if (url_parts.pathname == "/") {
+      filter_object = {}
 
-    // Write 200 JSON
-    response.writeHead(200, { "Content-Type": "application/json" });
-    response.end(JSON.stringify(GLOBAL_LATENCIES));
+      ALLOWED_PARAMETERS.forEach(function(key) {
+        if (!(key in query)) {
+          HTTPResponse(response, 400, ": Bad Request. Key " + key + " is missing") 
+        }
+        if (query[key].includes(",")){
+	  filter_object[key] = true
+        } else if (query[key] == "*" || query[key] == ""){
+          filter_object[key] = false
+        } else if (!(isAlphaNumeric(query[key]))) {
+          HTTPResponse(response, 400, ": Bad Request. Key " + key + " is not Alphanumeric.")
+        } else if (query[key] != ("*" || "")) {
+          filter_object[key] = true
+        }
 
+      });
+
+      // Write 200 JSON
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify(filterLatencies(query, filter_object)));
+
+    }
   })
 
   // Listen to incoming HTTP connections
@@ -38,6 +61,29 @@ module.exports = function(callback) {
   // Get initial latencies
   getLatencies();
 
+}
+
+function filterLatencies(query, filter_object) {
+  var result = GLOBAL_LATENCIES;
+
+  if (filter_object['network']) {
+    requestedNetworks = query["network"].split(","); 
+    result = result.filter(function(x) {return requestedNetworks.indexOf(x.network) !== -1})
+  }
+  if (filter_object['station']) {
+    requestedStations = query["station"].split(",");
+    result = result.filter(function(x) {return requestedStations.indexOf(x.station) !== -1})
+  }
+  if (filter_object['location']) {
+    requestedLocations = query["location"].split(",");
+    result = result.filter(function(x) {return requestedLocations.indexOf(x.location) !== -1})
+  }
+  if (filter_object['channel']) {
+    requestedChannels = query["channel"].split(",");
+    result = result.filter(function(x) {return requestedChannels.indexOf(x.channel) !== -1})
+  }
+
+  return result
 }
 
 function getLatencies() {
@@ -139,6 +185,7 @@ function parseRecords(json) {
       });
 
     });
+
   });
 
   return latencies;
@@ -154,3 +201,27 @@ if(require.main === module) {
   });
 
 }
+
+function HTTPResponse(response, status, message) {
+  if (status == 400){
+    response.writeHead(status, { "Content-Type": "application/json" });
+    return response.end(JSON.stringify("HTTP status " +  status + message)); 
+  } else if (status == 500) {
+    response.writeHead(status, { "Content-Type": "application/json" });
+    return response.end(JSON.stringify("HTTP status " +  status + ": Internal Server Error."));
+  }
+}
+
+function isAlphaNumeric(str) {
+  var code, i, len;
+
+  for (i = 0, len = str.length; i < len; i++) {
+    code = str.charCodeAt(i);
+    if (!(code > 47 && code < 58) && // numeric (0-9)
+        !(code > 64 && code < 91) && // upper alpha (A-Z)
+        !(code > 96 && code < 123)) { // lower alpha (a-z)
+      return false;
+    }
+  }
+  return true;
+};
