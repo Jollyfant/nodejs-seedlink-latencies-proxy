@@ -211,6 +211,7 @@ function parseRecords(json) {
         "station": station.attr("name").value(),
         "location": stream.attr("location").value(),
         "channel": stream.attr("seedname").value(),
+        "end": new Date(end).toISOString(),
         "msLatency": current - end,
       });
 
