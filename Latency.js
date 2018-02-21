@@ -3,52 +3,80 @@ const Libxmljs = require("libxmljs");
 const Record = require("./lib/Record");
 const Http = require("http");
 const CONFIG = require("./config");
-const ALLOWED_PARAMETERS = ["network","station","location","channel"];
+const url = require("url");
+const querystring = require("querystring");
 
 // Global container for latencies
 var GLOBAL_LATENCIES = null;
-var url = require('url');
+
+function validateParameters(queryObject) {
+
+  const ALLOWED_PARAMETERS = [
+    "network",
+    "station",
+    "location",
+    "channel"
+  ];
+
+  // Check if all parameters are allowed
+  Object.keys(queryObject).forEach(function(x) {
+    if(ALLOWED_PARAMETERS.indexOf(x) === -1) {
+      throw("Key " + x + " is not supported");
+    }
+    if(!isAlphaNumeric(queryObject[x])) {
+      console.log("Not alphanumerical");
+      //throw("Key " + x + " value " + queryObject[x] + " is not alphanumerical");
+    }
+  });
+
+  if(queryObject.network === undefined) {
+    throw("Network parameter is required");
+  }
+
+  return true;
+
+}
 
 module.exports = function(callback) {
+
   // Refresh latency information
   setInterval(getLatencies, CONFIG.REFRESH_INTERVAL);
 
   // Create a HTTP server
   const Server = Http.createServer(function(request, response) {
-    var url_parts = url.parse(request.url, true);
-    var query = url_parts.query;
+
+    var uri = url.parse(request.url);
 
     // Write 204 No Content
     if(GLOBAL_LATENCIES === null) {
-      response.writeHead(204);
-      response.end();
-      return;
+      return HTTPError(response, 204);
     }
     
-    if (url_parts.pathname == "/") {
-      filter_object = {}
-
-      ALLOWED_PARAMETERS.forEach(function(key) {
-        if (!(key in query)) {
-          HTTPResponse(response, 400, ": Bad Request. Key " + key + " is missing") 
-        }
-        if (query[key].includes(",")){
-	  filter_object[key] = true
-        } else if (query[key] == "*" || query[key] == ""){
-          filter_object[key] = false
-        } else if (!(isAlphaNumeric(query[key]))) {
-          HTTPResponse(response, 400, ": Bad Request. Key " + key + " is not Alphanumeric.")
-        } else if (query[key] != ("*" || "")) {
-          filter_object[key] = true
-        }
-
-      });
-
-      // Write 200 JSON
-      response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(JSON.stringify(filterLatencies(query, filter_object)));
-
+    // Only root path is supported
+    if(uri.pathname !== "/") {
+      return HTTPError(response, 404, "Method not supported")
     }
+
+    var queryObject = querystring.parse(uri.query);
+
+    // Sanitize user input
+    try {
+      validateParameters(queryObject);
+    } catch(exception) {
+      return HTTPError(response, 400, exception);
+    }
+
+    var requestedLatencies = filterLatencies(queryObject);
+
+    // Write 204
+    if(requestedLatencies.length === 0) {
+      return HTTPError(response, 204);
+    }
+
+    // Write 200 JSON
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify(requestedLatencies));
+
   })
 
   // Listen to incoming HTTP connections
@@ -63,27 +91,26 @@ module.exports = function(callback) {
 
 }
 
-function filterLatencies(query, filter_object) {
-  var result = GLOBAL_LATENCIES;
+function filterLatencies(queryObject) {
 
-  if (filter_object['network']) {
-    requestedNetworks = query["network"].split(","); 
-    result = result.filter(function(x) {return requestedNetworks.indexOf(x.network) !== -1})
-  }
-  if (filter_object['station']) {
-    requestedStations = query["station"].split(",");
-    result = result.filter(function(x) {return requestedStations.indexOf(x.station) !== -1})
-  }
-  if (filter_object['location']) {
-    requestedLocations = query["location"].split(",");
-    result = result.filter(function(x) {return requestedLocations.indexOf(x.location) !== -1})
-  }
-  if (filter_object['channel']) {
-    requestedChannels = query["channel"].split(",");
-    result = result.filter(function(x) {return requestedChannels.indexOf(x.channel) !== -1})
-  }
+  // Create a copy of the global latencies map
+  var results = GLOBAL_LATENCIES.map(x => x);
 
-  return result
+  // Go over all submitted keys
+  Object.keys(queryObject).forEach(function(parameter) {
+
+    // Input values as array (support comma delimited)
+    var values = queryObject[parameter].split(",");
+
+    // Check if the result should be filtered
+    results = results.filter(function(latency) {
+      return (values.indexOf(latency[parameter]) !== -1); 
+    });
+
+  });
+
+  return results;
+
 }
 
 function getLatencies() {
@@ -202,17 +229,15 @@ if(require.main === module) {
 
 }
 
-function HTTPResponse(response, status, message) {
-  if (status == 400){
-    response.writeHead(status, { "Content-Type": "application/json" });
-    return response.end(JSON.stringify("HTTP status " +  status + message)); 
-  } else if (status == 500) {
-    response.writeHead(status, { "Content-Type": "application/json" });
-    return response.end(JSON.stringify("HTTP status " +  status + ": Internal Server Error."));
-  }
+function HTTPError(response, status, message) {
+
+  response.writeHead(status, {"Content-Type": "text/plain"});
+  response.end(message)
+
 }
 
 function isAlphaNumeric(str) {
+
   var code, i, len;
 
   for (i = 0, len = str.length; i < len; i++) {
@@ -223,5 +248,7 @@ function isAlphaNumeric(str) {
       return false;
     }
   }
+
   return true;
+
 };
