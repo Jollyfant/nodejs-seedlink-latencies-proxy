@@ -23,10 +23,11 @@ function validateParameters(queryObject) {
     if(ALLOWED_PARAMETERS.indexOf(x) === -1) {
       throw("Key " + x + " is not supported");
     }
-    if(!isAlphaNumeric(queryObject[x])) {
-      console.log("Not alphanumerical");
-      //throw("Key " + x + " value " + queryObject[x] + " is not alphanumerical");
+
+    if(!isAlphaNumeric(queryObject[x], x)) {
+      throw("Key " + x + " is not alphanumerical");
     }
+
   });
 
   if(queryObject.network === undefined) {
@@ -104,6 +105,12 @@ function filterLatencies(queryObject) {
 
     // Input values as array (support comma delimited)
     var values = queryObject[parameter].split(",");
+
+    if(parameter === "location") {
+      values = values.map(function(x) {
+        return x.replace("--", "");
+      });
+    }
 
     // Check if the result should be filtered
     results = results.filter(function(latency) {
@@ -240,19 +247,23 @@ function HTTPError(response, status, message) {
 
 }
 
-function isAlphaNumeric(str) {
+function isAlphaNumeric(code, level) {
 
-  var code, i, len;
+  const NETWORK_REGEXP = new RegExp(/^([0-9a-z]{1,2},){0,}([0-9a-z]{1,2})$/i)
+  const STATION_REGEXP = new RegExp(/^([0-9a-z]{1,5},){0,}([0-9a-z]{1,5})$/i);
+  const LOCATION_REGEXP = new RegExp(/^([0-9a-z]{2},){0,}([0-9a-z]{2})$/i);
+  const CHANNEL_REGEXP = new RegExp(/^([0-9a-z]{3},){0,}([0-9a-z]{3})$/i);
 
-  for (i = 0, len = str.length; i < len; i++) {
-    code = str.charCodeAt(i);
-    if (!(code > 47 && code < 58) && // numeric (0-9)
-        !(code > 64 && code < 91) && // upper alpha (A-Z)
-        !(code > 96 && code < 123)) { // lower alpha (a-z)
-      return false;
+  switch(level) {
+    case "network":
+      return NETWORK_REGEXP.test(code);
+    case "station":
+      return STATION_REGEXP.test(code);
+    case "location":
+      return LOCATION_REGEXP.test(code);
+    case "channel": 
+      return CHANNEL_REGEXP.test(code);
     }
-  }
-
   return true;
 
 };
