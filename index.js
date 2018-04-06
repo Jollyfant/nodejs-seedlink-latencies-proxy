@@ -139,7 +139,7 @@ function getLatencies() {
   var records = new Array();
  
   // When the connection is established write INFO
-  socket.connect(CONFIG.SEEDLINK_PORT, CONFIG.SEEDLINK_HOST, function() {
+  socket.connect(CONFIG.SEEDLINK.PORT, CONFIG.SEEDLINK.HOST, function() {
     socket.write(INFO);
   });
 
