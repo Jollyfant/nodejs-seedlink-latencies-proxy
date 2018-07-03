@@ -1,3 +1,7 @@
+# Dockerfile for building NodeJS Seedlink Latency connector
+#
+# $ docker build -t seedlink-latencies:1.0 .
+
 FROM node:8
 MAINTAINER Mathijs Koymans
 
@@ -11,4 +15,4 @@ RUN npm install
 
 EXPOSE 8087
 
-CMD [ "npm", "start" ]
+CMD ["npm", "start"]
