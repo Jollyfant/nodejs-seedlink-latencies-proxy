@@ -1,16 +1,175 @@
-const Network = require("net");
-const Libxmljs = require("libxmljs");
-const Record = require("./lib/Record");
-const Http = require("http");
-const CONFIG = require("./config");
+/*
+ * NodeJS SeedlinkLatencyProxy
+ *
+ * Requests latency information from a seedlink server in intervals
+ * These latencies can be queried using a basic API
+ * Supported parameters: network, station, latency, channel
+ *
+ * Copyright: ORFEUS Data Center
+ * Author: Mathijs Koymans
+ *
+ */
+
+"use strict";
+
+// Import standard lib
+const net = require("net");
+const fs = require("fs");
+const path = require("path");
+const http = require("http");
 const url = require("url");
 const querystring = require("querystring");
 
-// Global container for latencies
-var GLOBAL_LATENCIES = null;
+// Third party library for pasing XML
+const libxmljs = require("libxmljs");
 
-function validateParameters(queryObject) {
+// libmseedjs
+const Record = require("./lib/libmseedjs/Record");
 
+var SeedlinkLatencyProxy = function(configuration, callback) {
+
+  /* class SeedlinkLatencyProxy
+   * NodeJS proxy for getting Seedlink latency information
+   */
+
+  function HTTPError(response, statusCode, message) {
+  
+    /* function HTTPError
+     * Writes HTTP reponse to the client
+     */
+  
+    response.writeHead(statusCode, {"Content-Type": "text/plain"});
+    response.write(message);
+    response.end();
+  
+  }
+
+  function EnableCORS(response) {
+
+    /* function EnableCORS
+     * Enables the cross origin headers
+     */
+
+    response.setHeader("Access-Control-Allow-Origin", "*");
+    response.setHeader("Access-Control-Allow-Methods", "GET");
+
+  }
+
+  this.configuration = configuration;
+  this.logger = fs.createWriteStream(path.join(__dirname, "logs", "service.log"), {"flags": "a"});
+
+  // Class global for caching latencies
+  this.cachedLatencies = new Array();
+
+  // Create a HTTP server
+  const Server = http.createServer(function(request, response) {
+
+    // Enable CORS headers when required
+    if(this.configuration.__CORS__) {
+      EnableCORS(response);
+    }
+
+    // Handle each incoming request
+    var uri = url.parse(request.url);
+    var initialized = Date.now();
+
+    // Write 204 No Content
+    if(this.cachedLatencies.length === 0) {
+      return HTTPError(response, 204);
+    }
+
+    // Only root path is supported
+    if(uri.pathname !== "/") {
+      return HTTPError(response, 404, "Method not supported.");
+    }
+
+    var queryObject = querystring.parse(uri.query);
+
+    // Check the user input
+    try {
+      this.validateParameters(queryObject);
+    } catch(exception) {
+      if(this.configuration.__DEBUG__) {
+        return HTTPError(response, 400, exception.stack);
+      } else {
+        return HTTPError(response, 400, exception.message);
+      }
+    }
+
+    var requestedLatencies = this.filterLatencies(queryObject);
+
+    // Write 204
+    if(requestedLatencies.length === 0) {
+      return HTTPError(response, 204);
+    }
+
+    // Write information to logfile
+    response.on("finish", function() {
+      this.logger.write(JSON.stringify({
+        "timestamp": new Date().toISOString(),
+        "method": request.method,
+        "query": uri.query,
+        "path": uri.pathname,
+        "client": request.headers["x-forwarded-for"] || request.connection.remoteAddress,
+        "agent": request.headers["user-agent"] || null,
+        "statusCode": response.statusCode,
+        "type": "HTTP Request",
+        "msRequestTime": (Date.now() - initialized),
+        "nLatencies": requestedLatencies.length
+      }) + "\n");
+    }.bind(this));
+
+    // Write 200 JSON
+    response.writeHead(200, {"Content-Type": "application/json"});
+    response.write(JSON.stringify(requestedLatencies));
+    response.end();
+
+  }.bind(this));
+
+  // Listen to incoming HTTP connections
+  Server.listen(this.configuration.PORT, this.configuration.HOST, function() {
+    callback(configuration.__NAME__, configuration.HOST, configuration.PORT);
+  });
+
+  // Get initial latencies
+  this.getLatencies();
+
+}
+
+SeedlinkLatencyProxy.prototype.validateParameters = function(queryObject) {
+
+  /* SeedlinkLatencyProxy.validateParameters
+   * Checks parameters passed to API request
+   */
+
+  function isValidParameter(key, value) {
+  
+    /* function isValidParameter
+     * Returns boolean whether parameter attributes are valid
+     */
+  
+    const NETWORK_REGEXP = new RegExp(/^([0-9a-z]{1,2},){0,}([0-9a-z]{1,2})$/i)
+    const STATION_REGEXP = new RegExp(/^([0-9a-z]{1,5},){0,}([0-9a-z]{1,5})$/i);
+    const LOCATION_REGEXP = new RegExp(/^([0-9a-z-]{2},){0,}([0-9a-z-]{2})$/i);
+    const CHANNEL_REGEXP = new RegExp(/^([0-9a-z]{3},){0,}([0-9a-z]{3})$/i);
+  
+    // Check individual parameters
+    switch(key) {
+      case "network":
+        return NETWORK_REGEXP.test(value);
+      case "station":
+        return STATION_REGEXP.test(value);
+      case "location":
+        return LOCATION_REGEXP.test(value);
+      case "channel":
+        return CHANNEL_REGEXP.test(value);
+      default:
+        throw new Error("Invalid parameter passed.");
+      }
+  
+  }
+
+  // Parameters allowed by the service
   const ALLOWED_PARAMETERS = [
     "network",
     "station",
@@ -20,110 +179,53 @@ function validateParameters(queryObject) {
 
   // Check if all parameters are allowed
   Object.keys(queryObject).forEach(function(x) {
-    if(ALLOWED_PARAMETERS.indexOf(x) === -1) {
-      throw("Key " + x + " is not supported");
+
+    // Must be supported by the service
+    if(!ALLOWED_PARAMETERS.includes(x)) {
+      throw new Error("Key " + x + " is not supported.");
     }
 
-    if(!isAlphaNumeric(queryObject[x], x)) {
-      throw("Key " + x + " is not alphanumerical");
+    if(!isValidParameter(x, queryObject[x])) {
+      throw new Error("Key " + x + " is not valid.");
     }
 
   });
 
-  if(queryObject.network === undefined) {
-    throw("Network parameter is required");
-  }
-
-  return true;
-
 }
 
-module.exports = function(callback) {
+SeedlinkLatencyProxy.prototype.filterLatencies = function(queryObject) {
 
-  // Refresh latency information
-  setInterval(getLatencies, CONFIG.REFRESH_INTERVAL);
+  /* function SeedlinkLatencyProxy.filterLatencies
+   * Filters latencies from the cached object, naive and low performance
+   */
 
-  // Create a HTTP server
-  const Server = Http.createServer(function(request, response) {
+  var bool;
 
-    response.setHeader("Access-Control-Allow-Origin", "*");
-    response.setHeader("Access-Control-Allow-Methods", "GET");
+  return this.cachedLatencies.filter(function(latency) {
 
-    var uri = url.parse(request.url);
+    bool = true;
 
-    // Write 204 No Content
-    if(GLOBAL_LATENCIES === null) {
-      return HTTPError(response, 204);
+    // Check all passed variables
+    if(queryObject.network) {
+      bool &= queryObject.network.split(",").includes(latency.network);
     }
-    
-    // Only root path is supported
-    if(uri.pathname !== "/") {
-      return HTTPError(response, 404, "Method not supported")
+    if(queryObject.station) {
+      bool &= queryObject.station.split(",").includes(latency.station);
     }
-
-    var queryObject = querystring.parse(uri.query);
-
-    // Sanitize user input
-    try {
-      validateParameters(queryObject);
-    } catch(exception) {
-      return HTTPError(response, 400, exception);
+    if(queryObject.location) {
+      bool &= queryObject.location.split(",").map(x => x.replace("--", "")).includes(latency.location);
+    }
+    if(queryObject.channel) {
+      bool &= queryObject.channel.split(",").includes(latency.channel);
     }
 
-    var requestedLatencies = filterLatencies(queryObject);
-
-    // Write 204
-    if(requestedLatencies.length === 0) {
-      return HTTPError(response, 204);
-    }
-
-    // Write 200 JSON
-    response.writeHead(200, { "Content-Type": "application/json" });
-    response.end(JSON.stringify(requestedLatencies));
-
-  })
-
-  // Listen to incoming HTTP connections
-  Server.listen(CONFIG.PORT, CONFIG.HOST, function() {
-    if(typeof callback === "function") {
-      callback();
-    }
-  });
-
-  // Get initial latencies
-  getLatencies();
-
-}
-
-function filterLatencies(queryObject) {
-
-  // Create a copy of the global latencies map
-  var results = GLOBAL_LATENCIES.map(x => x);
-
-  // Go over all submitted keys
-  Object.keys(queryObject).forEach(function(parameter) {
-
-    // Input values as array (support comma delimited)
-    var values = queryObject[parameter].split(",");
-
-    if(parameter === "location") {
-      values = values.map(function(x) {
-        return x.replace("--", "");
-      });
-    }
-
-    // Check if the result should be filtered
-    results = results.filter(function(latency) {
-      return (values.indexOf(latency[parameter]) !== -1); 
-    });
+    return bool;
 
   });
 
-  return results;
-
 }
 
-function getLatencies() {
+SeedlinkLatencyProxy.prototype.getLatencies = function() {
 
   /* function getLantecies
    * Connects to Seedlink to get current stream latencies
@@ -132,38 +234,38 @@ function getLatencies() {
   const INFO = new Buffer("INFO STREAMS\r\n");
 
   // Open a new TCP socket
-  var socket = new Network.Socket()
+  var socket = new net.Socket()
 
   // Create a new empty buffer
   var buffer = new Buffer(0);
-  var records = new Array();
+  var latencyData = new Array();
  
   // When the connection is established write INFO
-  socket.connect(CONFIG.SEEDLINK.PORT, CONFIG.SEEDLINK.HOST, function() {
+  socket.connect(this.configuration.SEEDLINK.PORT, this.configuration.SEEDLINK.HOST, function() {
     socket.write(INFO);
   });
 
   // Data is written over the socket
   socket.on("data", function(data) {
 
-    // Extend the buffer with new data
+    // Extend the buffer with newly received data
     buffer = Buffer.concat([buffer, data]);
 
-    // Keep reading 512 byte records from the buffer
+    // Keep reading 512 byte latencyData from the buffer
     while(buffer.length >= 520) {
 
       // Get the seedlink packet for this record
       var SLPACKET = buffer.slice(0, 8).toString();
 
-      // Add a new record to the buffer and slice
-      records.push(new Record(buffer.slice(8, 520)))
+      // Extract the ASCII from the record
+      latencyData.push(new Record(buffer.slice(8, 520)).data);
       buffer = buffer.slice(520);
 
-      // Final record
+      // The final record was received 
       if(SLPACKET === "SLINFO  ") {
 
         // Update the global variable
-        GLOBAL_LATENCIES = parseRecords(records);
+        this.cachedLatencies = this.parseRecords(latencyData.join(""));
 
         // Destroy the socket
         socket.destroy();
@@ -172,45 +274,41 @@ function getLatencies() {
 
     }
 
-  });
+  }.bind(this));
 
-  // Oops
+  // Error on socket connection
   socket.on("error", function(error) {
     console.log(error);
   });
 
+  // Set up for the next caching request
+  setTimeout(this.getLatencies.bind(this), this.configuration.REFRESH_INTERVAL);
+
 }
 
-function parseRecords(json) {
+SeedlinkLatencyProxy.prototype.parseRecords = function(XMLString) {
 
   /* function extractXML
-   * Extracts XML from mSEED log records..
+   * Extracts XML from mSEED log latencyData..
    */
-
-  // Merge ASCII data
-  var XML = json.map(function(x) {
-    return x.data
-  }).join("");
-
-  // Parse the XML using the provided library
-  var xmlDoc = Libxmljs.parseXmlString(XML);
 
   var latencies = new Array();
   var current = Date.now();
+  var end;
 
   // Go over all station nodes
   // For each station go over all streams
-  xmlDoc.root().childNodes().forEach(function(station) {
+  libxmljs.parseXmlString(XMLString).root().childNodes().forEach(function(station) {
 
     station.childNodes().forEach(function(stream) {
 
-      // Skip identifiers not D
+      // Skip identifiers that are not D
       if(stream.attr("type").value() !== "D") {
         return;
       }
 
       // Get the end time from Seedlink
-      var end = Date.parse(stream.attr("end_time").value() + " GMT");
+      end = Date.parse(stream.attr("end_time").value() + " GMT");
 
       // Collect all latencies
       latencies.push({
@@ -230,40 +328,17 @@ function parseRecords(json) {
 
 }
 
+// Expose the class
+module.exports = SeedlinkLatencyProxy;
+
 // Start the NodeJS Seedlink Server
 if(require.main === module) {
 
+  const CONFIG = require("./config");
+
   // Start up the WFCatalog
-  new module.exports(function() {
-    console.log("NodeJS Latency Server has been initialized on " + CONFIG.HOST + ":" + CONFIG.PORT)
+  new module.exports(CONFIG, function(name, host, port) {
+    console.log(name + " microservice has been started on " + host + ":" + port);
   });
 
 }
-
-function HTTPError(response, status, message) {
-
-  response.writeHead(status, {"Content-Type": "text/plain"});
-  response.end(message)
-
-}
-
-function isAlphaNumeric(code, level) {
-
-  const NETWORK_REGEXP = new RegExp(/^([0-9a-z]{1,2},){0,}([0-9a-z]{1,2})$/i)
-  const STATION_REGEXP = new RegExp(/^([0-9a-z]{1,5},){0,}([0-9a-z]{1,5})$/i);
-  const LOCATION_REGEXP = new RegExp(/^([0-9a-z]{2},){0,}([0-9a-z]{2})$/i);
-  const CHANNEL_REGEXP = new RegExp(/^([0-9a-z]{3},){0,}([0-9a-z]{3})$/i);
-
-  switch(level) {
-    case "network":
-      return NETWORK_REGEXP.test(code);
-    case "station":
-      return STATION_REGEXP.test(code);
-    case "location":
-      return LOCATION_REGEXP.test(code);
-    case "channel": 
-      return CHANNEL_REGEXP.test(code);
-    }
-  return true;
-
-};

@@ -1,0 +1,4 @@
+{"timestamp":"2018-07-05T13:53:58.816Z","method":"GET","query":"network=NL&channel=BHZ","path":"/","client":"127.0.0.1","agent":"curl/7.43.0","statusCode":200,"type":"HTTP Request","msRequestTime":3,"nLatencies":3}
+{"timestamp":"2018-07-05T13:53:59.072Z","method":"GET","query":"network=NL&channel=BHZ","path":"/","client":"127.0.0.1","agent":"curl/7.43.0","statusCode":200,"type":"HTTP Request","msRequestTime":1,"nLatencies":3}
+{"timestamp":"2018-07-05T13:53:59.314Z","method":"GET","query":"network=NL&channel=BHZ","path":"/","client":"127.0.0.1","agent":"curl/7.43.0","statusCode":200,"type":"HTTP Request","msRequestTime":1,"nLatencies":3}
+{"timestamp":"2018-07-05T13:53:59.530Z","method":"GET","query":"network=NL&channel=BHZ","path":"/","client":"127.0.0.1","agent":"curl/7.43.0","statusCode":200,"type":"HTTP Request","msRequestTime":0,"nLatencies":3}

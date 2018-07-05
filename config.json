@@ -1,9 +1,13 @@
 {
+  "__CORS__": true,
+  "__DEBUG__": true,
+  "__NAME__": "SeedlinkLatencyProxy",
   "HOST": "0.0.0.0", 
   "SEEDLINK": {
     "HOST": "eida.orfeus-eu.org", 
     "PORT": 18000
   }, 
   "PORT": 8087, 
-  "REFRESH_INTERVAL": 60000
+  "REFRESH_INTERVAL": 60000,
+  "LOGFILE": "./logs/service.log"
 }
