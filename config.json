@@ -1,6 +1,6 @@
 {
   "__CORS__": true,
-  "__DEBUG__": true,
+  "__DEBUG__": false,
   "__NAME__": "SeedlinkLatencyProxy",
   "HOST": "0.0.0.0", 
   "SEEDLINK": {
@@ -9,5 +9,5 @@
   }, 
   "PORT": 8087, 
   "REFRESH_INTERVAL": 60000,
-  "LOGFILE": "./logs/service.log"
+  "LOGFILE": "./logs/nodejs-seedlink-latency-service.log"
 }

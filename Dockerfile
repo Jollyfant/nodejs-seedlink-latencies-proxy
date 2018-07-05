@@ -1,17 +1,30 @@
 # Dockerfile for building NodeJS Seedlink Latency connector
 #
+# Build the container:
 # $ docker build -t seedlink-latencies:1.0 .
+#
+# And run the container (may omit the -e flags):
+# $ docker run --rm -p 8087:8087 -e "SERVICE_PORT=8087" -e "SERVICE_HOST=0.0.0.0" seedlink-latencies:1.0
 
 FROM node:8
-MAINTAINER Mathijs Koymans
+
+# Add metadata
+LABEL maintainer="Mathijs Koymans"
+LABEL email="koymans@knmi.nl"
 
 # Set the work directory
 WORKDIR /usr/src/app
 
-# Copy the source code
+# Copy the package json and install NPM dependencies (libxmljs)
+COPY package*.json ./
+RUN npm install
+
+# Copy the rest of the source
 COPY . .
 
-RUN npm install
+# Set default environment variables
+ENV SERVICE_HOST=0.0.0.0
+ENV SERVICE_PORT=8087
 
 EXPOSE 8087
 

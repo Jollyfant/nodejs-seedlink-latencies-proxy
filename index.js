@@ -56,7 +56,7 @@ var SeedlinkLatencyProxy = function(configuration, callback) {
   }
 
   this.configuration = configuration;
-  this.logger = fs.createWriteStream(path.join(__dirname, "logs", "service.log"), {"flags": "a"});
+  this.logger = this.setupLogger();
 
   // Class global for caching latencies
   this.cachedLatencies = new Array();
@@ -126,13 +126,28 @@ var SeedlinkLatencyProxy = function(configuration, callback) {
 
   }.bind(this));
 
+  var host = process.env.SERVICE_HOST || this.configuration.HOST;
+  var port = process.env.SERVICE_PORT || this.configuration.PORT;
+
   // Listen to incoming HTTP connections
-  Server.listen(this.configuration.PORT, this.configuration.HOST, function() {
-    callback(configuration.__NAME__, configuration.HOST, configuration.PORT);
+  Server.listen(port, host, function() {
+    callback(configuration.__NAME__, host, port);
   });
 
   // Get initial latencies
   this.getLatencies();
+
+}
+
+SeedlinkLatencyProxy.prototype.setupLogger = function() {
+
+  /* SeedlinkLatencyProxy.setupLogger
+   * Sets up log directory and file for logging
+   */
+
+  // Create the log directory if it does not exist
+  fs.existsSync(path.join(__dirname, "logs")) || fs.mkdirSync(path.join(__dirname, "logs"));
+  return fs.createWriteStream(path.join(__dirname, "logs", "service.log"), {"flags": "a"});
 
 }
 
