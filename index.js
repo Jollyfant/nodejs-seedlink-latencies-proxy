@@ -218,6 +218,10 @@ SeedlinkLatencyProxy.prototype.filterLatencies = function(queryObject) {
 
   var bool;
 
+  if(!queryObject.network && !queryObject.station && !queryObject.location && !queryObject.channel) {
+    return this.cachedLatencies;
+  }
+
   return this.cachedLatencies.filter(function(latency) {
 
     bool = true;
@@ -283,6 +287,10 @@ SeedlinkLatencyProxy.prototype.getLatencies = function() {
 
         // Update the global variable
         this.cachedLatencies = this.parseRecords(latencyData.join(""));
+
+        if(this.configuration.__SORT__) {
+          this.cachedLatencies.sort(function(a, b) { return a.msLatency - b.msLatency });
+        }
 
         // Destroy the TCP socket
         socket.destroy();

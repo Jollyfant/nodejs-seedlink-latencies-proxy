@@ -1,4 +1,5 @@
 {
+  "__SORT__": true,
   "__CORS__": true,
   "__DEBUG__": false,
   "__NAME__": "SeedlinkLatencyProxy",
