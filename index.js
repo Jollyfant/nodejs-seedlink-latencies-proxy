@@ -126,6 +126,7 @@ var SeedlinkLatencyProxy = function(configuration, callback) {
 
   }.bind(this));
 
+  // Get process environment variables (Docker)
   var host = process.env.SERVICE_HOST || this.configuration.HOST;
   var port = process.env.SERVICE_PORT || this.configuration.PORT;
 
@@ -249,11 +250,12 @@ SeedlinkLatencyProxy.prototype.getLatencies = function() {
   const INFO = new Buffer("INFO STREAMS\r\n");
 
   // Open a new TCP socket
-  var socket = new net.Socket()
+  const socket = new net.Socket()
 
   // Create a new empty buffer
   var buffer = new Buffer(0);
   var latencyData = new Array();
+  var SLPACKET;
  
   // When the connection is established write INFO
   socket.connect(this.configuration.SEEDLINK.PORT, this.configuration.SEEDLINK.HOST, function() {
@@ -269,20 +271,17 @@ SeedlinkLatencyProxy.prototype.getLatencies = function() {
     // Keep reading 512 byte latencyData from the buffer
     while(buffer.length >= 520) {
 
-      // Get the seedlink packet for this record
-      var SLPACKET = buffer.slice(0, 8).toString();
-
       // Extract the ASCII from the record
       latencyData.push(new Record(buffer.slice(8, 520)).data);
       buffer = buffer.slice(520);
 
       // The final record was received 
-      if(SLPACKET === "SLINFO  ") {
+      if(buffer.slice(0, 8).toString() === "SLINFO  ") {
 
         // Update the global variable
         this.cachedLatencies = this.parseRecords(latencyData.join(""));
 
-        // Destroy the socket
+        // Destroy the TCP socket
         socket.destroy();
 
       }
@@ -293,8 +292,8 @@ SeedlinkLatencyProxy.prototype.getLatencies = function() {
 
   // Error on socket connection
   socket.on("error", function(error) {
-    console.log(error);
-  });
+    this.cachedLatencies = new Array();
+  }.bind(this));
 
   // Set up for the next caching request
   setTimeout(this.getLatencies.bind(this), this.configuration.REFRESH_INTERVAL);
