@@ -262,13 +262,13 @@ SeedlinkLatencyProxy.prototype.filterLatencies = function(queryObject) {
     if(queryObject.network) {
       bool &= matchArray(latency.network, queryObject.network.split(","));
     }
-    if(queryObject.station) {
+    if(bool && queryObject.station) {
       bool &= matchArray(latency.station, queryObject.station.split(","));
     }
-    if(queryObject.location) {
+    if(bool && queryObject.location) {
       bool &= matchArray(latency.location, queryObject.location.split(",").map(x => x.replace("--", "")))
     }
-    if(queryObject.channel) {
+    if(bool && queryObject.channel) {
       bool &= matchArray(latency.channel, queryObject.channel.split(","));
     }
 
