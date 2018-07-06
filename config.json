@@ -8,6 +8,5 @@
     "PORT": 18000
   }, 
   "PORT": 8087, 
-  "REFRESH_INTERVAL": 60000,
-  "LOGFILE": "./logs/nodejs-seedlink-latency-service.log"
+  "REFRESH_INTERVAL": 60000
 }

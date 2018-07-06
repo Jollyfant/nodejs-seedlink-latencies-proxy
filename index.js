@@ -7,6 +7,7 @@
  *
  * Copyright: ORFEUS Data Center
  * Author: Mathijs Koymans
+ * Licensed under MIT
  *
  */
 
@@ -128,7 +129,7 @@ var SeedlinkLatencyProxy = function(configuration, callback) {
 
   // Get process environment variables (Docker)
   var host = process.env.SERVICE_HOST || this.configuration.HOST;
-  var port = process.env.SERVICE_PORT || this.configuration.PORT;
+  var port = Number(process.env.SERVICE_PORT) || this.configuration.PORT;
 
   // Listen to incoming HTTP connections
   Server.listen(port, host, function() {
