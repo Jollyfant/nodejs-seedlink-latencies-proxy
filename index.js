@@ -165,10 +165,10 @@ SeedlinkLatencyProxy.prototype.validateParameters = function(queryObject) {
      * Returns boolean whether parameter attributes are valid
      */
   
-    const NETWORK_REGEXP = new RegExp(/^([0-9a-z]{1,2},){0,}([0-9a-z]{1,2})$/i)
-    const STATION_REGEXP = new RegExp(/^([0-9a-z]{1,5},){0,}([0-9a-z]{1,5})$/i);
-    const LOCATION_REGEXP = new RegExp(/^([0-9a-z-]{2},){0,}([0-9a-z-]{2})$/i);
-    const CHANNEL_REGEXP = new RegExp(/^([0-9a-z]{3},){0,}([0-9a-z]{3})$/i);
+    const NETWORK_REGEXP = new RegExp(/^([0-9a-z?*]{1,2},){0,}([0-9a-z?*]{1,2})$/i)
+    const STATION_REGEXP = new RegExp(/^([0-9a-z?*]{1,5},){0,}([0-9a-z?*]{1,5})$/i);
+    const LOCATION_REGEXP = new RegExp(/^([0-9a-z-?*]{1,2},){0,}([0-9a-z-?*]{1,2})$/i);
+    const CHANNEL_REGEXP = new RegExp(/^([0-9a-z?*]{1,3},){0,}([0-9a-z?*]{1,3})$/i);
   
     // Check individual parameters
     switch(key) {
@@ -216,6 +216,38 @@ SeedlinkLatencyProxy.prototype.filterLatencies = function(queryObject) {
    * Filters latencies from the cached object, naive and low performance
    */
 
+  function matchArray(code, values) {
+
+    /* function matchArray
+     * Returns elements from array that match a wildcard expression
+     */
+
+    function testWildcard(code, x) {
+
+      /* function testWildcard
+       * Converts ? * wildcards to regular expressions
+       */
+
+      function convertWildcard(x) {
+ 
+        /* function testWildcard
+         * Converts ? * wildcards to regular expressions
+         */
+
+        return x.replace(/\?/g, ".").replace(/\*/g, ".*");
+
+      }
+
+      return new RegExp("^" + convertWildcard(x) + "$").test(code);
+
+    }
+
+    return values.filter(function(x) {
+      return testWildcard(code, x);
+    }).length;
+
+  }
+
   var bool;
 
   if(!queryObject.network && !queryObject.station && !queryObject.location && !queryObject.channel) {
@@ -228,16 +260,16 @@ SeedlinkLatencyProxy.prototype.filterLatencies = function(queryObject) {
 
     // Check all passed variables
     if(queryObject.network) {
-      bool &= queryObject.network.split(",").includes(latency.network);
+      bool &= matchArray(latency.network, queryObject.network.split(","));
     }
     if(queryObject.station) {
-      bool &= queryObject.station.split(",").includes(latency.station);
+      bool &= matchArray(latency.station, queryObject.station.split(","));
     }
     if(queryObject.location) {
-      bool &= queryObject.location.split(",").map(x => x.replace("--", "")).includes(latency.location);
+      bool &= matchArray(latency.location, queryObject.location.split(",").map(x => x.replace("--", "")))
     }
     if(queryObject.channel) {
-      bool &= queryObject.channel.split(",").includes(latency.channel);
+      bool &= matchArray(latency.channel, queryObject.channel.split(","));
     }
 
     return bool;
