@@ -29,3 +29,16 @@ The supported parameters are valid SEED stream identifiers. Multiple identifiers
   * station
   * location
   * channel
+
+## Example
+
+    $ curl "127.0.0.1:8087?network=GE&station=MARCO&channel=HHZ"
+
+    [{
+        "network": "GE",
+        "station": "MARCO",
+        "location": "",
+        "channel": "HHZ",
+        "end": "2018-07-06T12:44:49.970Z",
+        "msLatency": 3542
+    }]
