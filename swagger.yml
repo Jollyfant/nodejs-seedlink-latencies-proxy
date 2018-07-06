@@ -1,0 +1,86 @@
+swagger: "2.0"
+info:
+  description: "HTTP API for querying Seedlink stream latencies"
+  version: "1.0.0"
+  title: "Seedlink Latency API"
+  termsOfService: "http://swagger.io/terms/"
+  contact:
+    email: "koymans@knmi.nl"
+  license:
+    name: "MIT"
+    url: "https://opensource.org/licenses/MIT"
+host: "127.0.0.1"
+basePath: "/1/"
+tags:
+- name: "latency"
+  description: "HTTP API for Seedlink stream latencies"
+schemes:
+- "http"
+paths:
+  /latency:
+    get:
+      tags:
+      - "latency"
+      summary: "Get stream latency statuses"
+      description: "Entrypoint for querying Seedlink stream latencies"
+      operationId: "getStreamLatency"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "network"
+        in: "query"
+        description: "Network code of stream"
+        type: "array"
+        items:
+          type: "string"
+      - name: "station"
+        in: "query"
+        description: "Station code of stream"
+        type: "array"
+        items:
+          type: "string"
+      - name: "location"
+        in: "query"
+        description: "Location code of stream"
+        type: "array"
+        items:
+          type: "string"
+      - name: "channel"
+        in: "query"
+        description: "Channel code of stream"
+        type: "array"
+        items:
+          type: "string"
+      responses:
+        200:
+          description: "OK"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/LatencyStatus"
+        400:
+          description: "Bad Request"
+definitions:
+  LatencyStatus:
+    type: "object"
+    required:
+    - "network"
+    - "station"
+    - "location"
+    - "channel"
+    - "end"
+    - "msLatency"
+    properties:
+      network:
+        type: "string"
+      station:
+        type: "string"
+      location:
+        type: "string"
+      channel:
+        type: "string"
+      end:
+        type: "string"
+        format: "date-time"
+      msLatency:
+        type: "integer"
