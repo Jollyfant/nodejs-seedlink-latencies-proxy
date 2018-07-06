@@ -13,6 +13,8 @@
 
 "use strict";
 
+const __VERSION__ = "1.0.0";
+
 // Import standard lib
 const net = require("net");
 const fs = require("fs");
@@ -280,7 +282,7 @@ SeedlinkLatencyProxy.prototype.filterLatencies = function(queryObject) {
 
 SeedlinkLatencyProxy.prototype.getLatencies = function() {
 
-  /* function getLantecies
+  /* function SeedlinkLatencyProxy.getLatencies
    * Connects to Seedlink to get current stream latencies
    */
 
@@ -312,7 +314,6 @@ SeedlinkLatencyProxy.prototype.getLatencies = function() {
 
       // Extract the ASCII from the record
       latencyData.push(new Record(buffer.slice(8, 520)).data);
-      buffer = buffer.slice(520);
 
       // The final record was received 
       if(SLPACKET === "SLINFO  ") {
@@ -328,6 +329,8 @@ SeedlinkLatencyProxy.prototype.getLatencies = function() {
         socket.destroy();
 
       }
+
+      buffer = buffer.slice(520);
 
     }
 
@@ -345,7 +348,7 @@ SeedlinkLatencyProxy.prototype.getLatencies = function() {
 
 SeedlinkLatencyProxy.prototype.parseRecords = function(XMLString) {
 
-  /* function extractXML
+  /* function SeedlinkLatencyProxy.extractXML
    * Extracts XML from mSEED log latencyData..
    */
 
@@ -386,15 +389,15 @@ SeedlinkLatencyProxy.prototype.parseRecords = function(XMLString) {
 }
 
 // Expose the class
-module.exports = SeedlinkLatencyProxy;
+module.exports.server = SeedlinkLatencyProxy;
+module.exports.__VERSION__ = __VERSION__;
 
-// Start the NodeJS Seedlink Server
 if(require.main === module) {
 
   const CONFIG = require("./config");
 
   // Start up the WFCatalog
-  new module.exports(CONFIG, function(name, host, port) {
+  new module.exports.server(CONFIG, function(name, host, port) {
     console.log(name + " microservice has been started on " + host + ":" + port);
   });
 

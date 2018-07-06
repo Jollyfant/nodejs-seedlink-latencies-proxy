@@ -9,14 +9,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Jollyfant/NodeJS-Seedlink-Latencies.git"
+    "url": "git+https://github.com/Jollyfant/nodejs-seedlink-latency-proxy.git"
   },
   "author": "Mathijs Koymans",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/Jollyfant/NodeJS-Seedlink-Latencies/issues"
+    "url": "https://github.com/Jollyfant/nodejs-seedlink-latency-proxy/issues"
   },
-  "homepage": "https://github.com/Jollyfant/NodeJS-Seedlink-Latencies#readme",
+  "homepage": "https://github.com/Jollyfant/nodejs-seedlink-latency-proxy#readme",
   "dependencies": {
     "libxmljs": "^0.18.7"
   }
