@@ -19,8 +19,10 @@ Modify config.json to suit your needs.
 
 Two envrionment variables can passed to Docker run to modify settings at runtime. Otherwise information is read from the built configuration file.
 
-  * SERVICE_HOST
-  * SERVICE_PORT
+  * SERVICE\_HOST
+  * SERVICE\_PORT
+  * SEEDLINK\_PORT
+  * SEEDLINK\_HOST
 
 ## API
 The supported parameters are valid SEED stream identifiers. Multiple identifiers may be delimited by a comma.
