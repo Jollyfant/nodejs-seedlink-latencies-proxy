@@ -259,7 +259,7 @@ SeedlinkLatencyProxy.prototype.getLatencies = function() {
   var SLPACKET;
  
   // When the connection is established write INFO
-  socket.connect(this.configuration.SEEDLINK.PORT, this.configuration.SEEDLINK.HOST, function() {
+  socket.connect(Number(process.env.SEEDLINK_PORT) || this.configuration.SEEDLINK.PORT, process.env.SEEDLINK_HOST || this.configuration.SEEDLINK.HOST, function() {
     socket.write(INFO);
   });
 
@@ -272,12 +272,14 @@ SeedlinkLatencyProxy.prototype.getLatencies = function() {
     // Keep reading 512 byte latencyData from the buffer
     while(buffer.length >= 520) {
 
+      SLPACKET = buffer.slice(0, 8).toString();
+
       // Extract the ASCII from the record
       latencyData.push(new Record(buffer.slice(8, 520)).data);
       buffer = buffer.slice(520);
 
       // The final record was received 
-      if(buffer.slice(0, 8).toString() === "SLINFO  ") {
+      if(SLPACKET === "SLINFO  ") {
 
         // Update the global variable
         this.cachedLatencies = this.parseRecords(latencyData.join(""));

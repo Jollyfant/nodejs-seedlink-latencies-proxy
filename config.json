@@ -3,10 +3,10 @@
   "__DEBUG__": false,
   "__NAME__": "SeedlinkLatencyProxy",
   "HOST": "0.0.0.0", 
+  "PORT": 8087, 
   "SEEDLINK": {
-    "HOST": "eida.orfeus-eu.org", 
+    "HOST": "geofon.gfz-potsdam.de", 
     "PORT": 18000
   }, 
-  "PORT": 8087, 
   "REFRESH_INTERVAL": 60000
 }

@@ -23,8 +23,10 @@ RUN npm install
 COPY . .
 
 # Set default environment variables
-ENV SERVICE_HOST=0.0.0.0
-ENV SERVICE_PORT=8087
+ENV SERVICE_HOST="" \
+    SERVICE_PORT="" \
+    SEEDLINK_HOST="" \
+    SEEDLINK_PORT=""
 
 EXPOSE 8087
 
