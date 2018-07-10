@@ -27,7 +27,7 @@ const querystring = require("querystring");
 const libxmljs = require("libxmljs");
 
 // libmseedjs
-const Record = require("./lib/libmseedjs/Record");
+const mSEEDRecord = require("libmseedjs");
 
 var SeedlinkLatencyProxy = function(configuration, callback) {
 
@@ -313,7 +313,7 @@ SeedlinkLatencyProxy.prototype.getLatencies = function() {
       SLPACKET = buffer.slice(0, 8).toString();
 
       // Extract the ASCII from the record
-      latencyData.push(new Record(buffer.slice(8, 520)).data);
+      latencyData.push(new mSEEDRecord(buffer.slice(8, 520)).data);
 
       // The final record was received 
       if(SLPACKET === "SLINFO  ") {
