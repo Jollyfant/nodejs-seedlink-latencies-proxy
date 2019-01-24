@@ -154,12 +154,15 @@ function validateParameters(queryObject) {
         return LOCATION_REGEXP.test(value);
       case "channel":
         return CHANNEL_REGEXP.test(value);
+      case "min":
+      case "max":
+        return Number(value) % 1 === 0;
       }
   
   }
 
   // Parameters allowed by the service
-  const ALLOWED_PARAMETERS = new Array("network", "station", "location", "channel");
+  const ALLOWED_PARAMETERS = new Array("network", "station", "location", "channel", "min", "max");
 
   // Check if all parameters are allowed
   Object.keys(queryObject).forEach(function(x) {
@@ -218,7 +221,7 @@ SeedlinkLatencyProxy.prototype.filterLatencies = function(queryObject) {
   }
 
   // If all fields are missing return everything
-  if(!queryObject.network && !queryObject.station && !queryObject.location && !queryObject.channel) {
+  if(!queryObject.network && !queryObject.station && !queryObject.location && !queryObject.channel && !queryObject.min && !queryObject.max) {
     return this.cachedLatencies;
   }
 
@@ -238,6 +241,14 @@ SeedlinkLatencyProxy.prototype.filterLatencies = function(queryObject) {
     }
     if(bool && queryObject.channel) {
       bool &= matchArray(latency.channel, queryObject.channel.split(","));
+    }
+
+    // Latency range requested
+    if(bool && queryObject.min) {
+      bool &= Number(queryObject.min) <= latency.msLatency;
+    }
+    if(bool && queryObject.max) {
+      bool &= latency.msLatency <= Number(queryObject.max);
     }
 
     return bool;
