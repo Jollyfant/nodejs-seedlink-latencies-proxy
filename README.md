@@ -1,12 +1,12 @@
 # nodejs-seedlink-latencies-proxy
-A proxy written for NodeJS that caches channel latencies available from a Seedlink server at a configurable interval. The cached information is made available through a simple HTTP API.
+A proxy written for NodeJS that caches channel latencies available from a number of Seedlink servers at a configurable interval. The cached information is made available through a simple HTTP API. The proxy refreshes the latency information automatically.
 
 ## Installation
 
     npm install
 
 ## Configuration
-Modify config.json to suit your needs.
+Modify config.json to suit your needs. You may configure multiple Seedlink servers latency sources that will be offered through the proxy.
 
 ## Running
 
@@ -21,8 +21,6 @@ Four envrionment variables can passed to Docker run to modify settings at runtim
 
   * SERVICE\_HOST
   * SERVICE\_PORT
-  * SEEDLINK\_PORT
-  * SEEDLINK\_HOST
 
 ## API
 The supported parameters are valid SEED stream identifiers. Multiple stream identifiers may be delimited by a comma.

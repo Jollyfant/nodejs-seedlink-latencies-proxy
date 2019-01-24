@@ -1,13 +1,15 @@
 /*
  * NodeJS SeedlinkLatencyProxy
  *
- * Requests latency information from a seedlink server in intervals
- * These latencies can be queried using a basic API
+ * Requests latency information from multiple seedlink server in intervals
+ * These latencies are cached and are exposed using a basic HTTP API
  * Supported parameters: network, station, latency, channel
  *
  * Copyright: ORFEUS Data Center
  * Author: Mathijs Koymans
  * Licensed under MIT
+ *
+ * Updated: 2019-01-24
  *
  */
 
@@ -15,71 +17,43 @@
 
 const __VERSION__ = "1.0.0";
 
-// Import standard lib
-const net = require("net");
-const fs = require("fs");
-const path = require("path");
-const http = require("http");
-const url = require("url");
-const querystring = require("querystring");
+const SeedlinkLatencyProxy = function(configuration, callback) {
 
-// Third party library for pasing XML
-const libxmljs = require("libxmljs");
-
-// libmseedjs
-const mSEEDRecord = require("libmseedjs");
-
-var SeedlinkLatencyProxy = function(configuration, callback) {
-
-  /* class SeedlinkLatencyProxy
+  /*
+   * Class SeedlinkLatencyProxy
    * NodeJS proxy for getting Seedlink latency information
    */
 
-  function HTTPError(response, statusCode, message) {
-  
-    /* function HTTPError
-     * Writes HTTP reponse to the client
-     */
-  
-    response.writeHead(statusCode, {"Content-Type": "text/plain"});
-    response.write(message);
-    response.end();
-  
-  }
+  const { createServer} = require("http");
+  const url = require("url");
+  const querystring = require("querystring");
 
-  function EnableCORS(response) {
-
-    /* function EnableCORS
-     * Enables the cross origin headers
-     */
-
-    response.setHeader("Access-Control-Allow-Origin", "*");
-    response.setHeader("Access-Control-Allow-Methods", "GET");
-
-  }
-
+  // Save the configuration
   this.configuration = configuration;
+
+  // Set up a logger
   this.logger = this.setupLogger();
 
   // Class global for caching latencies
   this.cachedLatencies = new Array();
 
   // Create a HTTP server
-  const Server = http.createServer(function(request, response) {
+  const Server = createServer(function(request, response) {
+
+    var initialized = Date.now();
 
     // Enable CORS headers when required
     if(this.configuration.__CORS__) {
       EnableCORS(response);
     }
 
-    // Handle each incoming request
-    var uri = url.parse(request.url);
-    var initialized = Date.now();
-
     // Write 204 No Content
     if(this.cachedLatencies.length === 0) {
       return HTTPError(response, 204);
     }
+
+    // Handle each incoming request
+    var uri = url.parse(request.url);
 
     // Only root path is supported
     if(uri.pathname !== "/") {
@@ -88,9 +62,9 @@ var SeedlinkLatencyProxy = function(configuration, callback) {
 
     var queryObject = querystring.parse(uri.query);
 
-    // Check the user input
+    // Validate the user input
     try {
-      this.validateParameters(queryObject);
+      validateParameters(queryObject);
     } catch(exception) {
       if(this.configuration.__DEBUG__) {
         return HTTPError(response, 400, exception.stack);
@@ -99,6 +73,7 @@ var SeedlinkLatencyProxy = function(configuration, callback) {
       }
     }
 
+    // Make sure to filter the latencies to the request
     var requestedLatencies = this.filterLatencies(queryObject);
 
     // Write 204
@@ -122,14 +97,14 @@ var SeedlinkLatencyProxy = function(configuration, callback) {
       }) + "\n");
     }.bind(this));
 
-    // Write 200 JSON
+    // OK! Write 200 JSON
     response.writeHead(200, {"Content-Type": "application/json"});
     response.write(JSON.stringify(requestedLatencies));
     response.end();
 
   }.bind(this));
 
-  // Get process environment variables (Docker)
+  // Get process environment variables (account for Docker env)
   var host = process.env.SERVICE_HOST || this.configuration.HOST;
   var port = Number(process.env.SERVICE_PORT) || this.configuration.PORT;
 
@@ -138,16 +113,20 @@ var SeedlinkLatencyProxy = function(configuration, callback) {
     callback(configuration.__NAME__, host, port);
   });
 
-  // Get initial latencies
-  this.getLatencies();
+  // Get initial latencies to cache
+  this.refreshCacheFull();
 
 }
 
 SeedlinkLatencyProxy.prototype.setupLogger = function() {
 
-  /* SeedlinkLatencyProxy.setupLogger
+  /*
+   * Function SeedlinkLatencyProxy.setupLogger
    * Sets up log directory and file for logging
    */
+
+  const fs = require("fs");
+  const path = require("path");
 
   // Create the log directory if it does not exist
   fs.existsSync(path.join(__dirname, "logs")) || fs.mkdirSync(path.join(__dirname, "logs"));
@@ -155,15 +134,17 @@ SeedlinkLatencyProxy.prototype.setupLogger = function() {
 
 }
 
-SeedlinkLatencyProxy.prototype.validateParameters = function(queryObject) {
+function validateParameters(queryObject) {
 
-  /* SeedlinkLatencyProxy.validateParameters
+  /* 
+   * Function SeedlinkLatencyProxy.validateParameters
    * Checks parameters passed to API request
    */
 
   function isValidParameter(key, value) {
   
-    /* function isValidParameter
+    /*
+     * Function SeedlinkLatencyProxy.validateParameters::isValidParameter
      * Returns boolean whether parameter attributes are valid
      */
   
@@ -182,30 +163,23 @@ SeedlinkLatencyProxy.prototype.validateParameters = function(queryObject) {
         return LOCATION_REGEXP.test(value);
       case "channel":
         return CHANNEL_REGEXP.test(value);
-      default:
-        throw new Error("Invalid parameter passed.");
       }
   
   }
 
   // Parameters allowed by the service
-  const ALLOWED_PARAMETERS = [
-    "network",
-    "station",
-    "location",
-    "channel"
-  ];
+  const ALLOWED_PARAMETERS = new Array("network", "station", "location", "channel");
 
   // Check if all parameters are allowed
   Object.keys(queryObject).forEach(function(x) {
 
     // Must be supported by the service
     if(!ALLOWED_PARAMETERS.includes(x)) {
-      throw new Error("Key " + x + " is not supported.");
+      throw new Error("Query parameter " + x + " is not supported.");
     }
 
     if(!isValidParameter(x, queryObject[x])) {
-      throw new Error("Key " + x + " is not valid.");
+      throw new Error("Query parameter " + x + " is not valid.");
     }
 
   });
@@ -214,25 +188,29 @@ SeedlinkLatencyProxy.prototype.validateParameters = function(queryObject) {
 
 SeedlinkLatencyProxy.prototype.filterLatencies = function(queryObject) {
 
-  /* function SeedlinkLatencyProxy.filterLatencies
+  /*
+   * Function SeedlinkLatencyProxy.filterLatencies
    * Filters latencies from the cached object, naive and low performance
    */
 
   function matchArray(code, values) {
 
-    /* function matchArray
+    /* 
+     * Function matchArray
      * Returns elements from array that match a wildcard expression
      */
 
     function testWildcard(code, x) {
 
-      /* function testWildcard
+      /* 
+       * Function testWildcard
        * Converts ? * wildcards to regular expressions
        */
 
       function convertWildcard(x) {
  
-        /* function testWildcard
+        /*
+         * Function testWildcard
          * Converts ? * wildcards to regular expressions
          */
 
@@ -244,21 +222,18 @@ SeedlinkLatencyProxy.prototype.filterLatencies = function(queryObject) {
 
     }
 
-    return values.filter(function(x) {
-      return testWildcard(code, x);
-    }).length;
+    return values.filter(x => testWildcard(code, x)).length;
 
   }
 
-  var bool;
-
+  // If all fields are missing return everything
   if(!queryObject.network && !queryObject.station && !queryObject.location && !queryObject.channel) {
     return this.cachedLatencies;
   }
 
   return this.cachedLatencies.filter(function(latency) {
 
-    bool = true;
+    var bool = true;
 
     // Check all passed variables
     if(queryObject.network) {
@@ -280,11 +255,84 @@ SeedlinkLatencyProxy.prototype.filterLatencies = function(queryObject) {
 
 }
 
-SeedlinkLatencyProxy.prototype.getLatencies = function() {
+SeedlinkLatencyProxy.prototype.refreshCacheFull = function() {
 
-  /* function SeedlinkLatencyProxy.getLatencies
+  /*
+   * Function SeedlinkLatencyProxy.refreshCacheFull
+   * Asynchronously goes over an array of servers and extends the result
+   * with a number of returned latencies
+   */
+
+  var next;
+  var servers = this.configuration.servers.slice(0);
+  var latencies = new Array();
+
+  (next = function() {
+
+    // No more servers to check
+    if(servers.length === 0) {
+      return this.setLatencyCache(latencies);
+    }
+
+    var server = servers.pop();
+
+    // Get the latencies for a single server
+    this.getLatencies(server, function(error, result) {
+
+      // Extend the result when no error
+      if(error === null) {
+        latencies = latencies.concat(result);
+      }
+
+      return next();
+
+    });
+
+  }.bind(this))();
+
+}
+
+SeedlinkLatencyProxy.prototype.setLatencyCache = function(latencies) {
+
+  /*
+   * Function SeedlinkLatencyProxy.setLatencyCache
+   * Sets the passed array of latencies to the exposed cache
+   */
+
+  function sortLatencies(a, b) {
+
+    /*
+     * Function SeedlinkLatencyProxy.setLatencyCache::sortLatencies
+     * Sorts the latencies from low to high
+     */
+
+    return a.msLatency - b.msLatency;
+
+  }
+
+  // A sort was requested on the submitted latencies
+  if(this.configuration.__SORT__) {
+    latencies.sort(sortLatencies);
+  }
+
+  // Overwrite the cached latencies with the new result
+  this.cachedLatencies = latencies;
+
+  // Queue for the next request
+  setTimeout(this.refreshCacheFull.bind(this), this.configuration.REFRESH_INTERVAL);
+
+}
+
+SeedlinkLatencyProxy.prototype.getLatencies = function(server, callback) {
+
+  /*
+   * Function SeedlinkLatencyProxy.getLatencies
    * Connects to Seedlink to get current stream latencies
    */
+
+  // libmseedjs
+  const net = require("net");
+  const mSEEDRecord = require("libmseedjs");
 
   const INFO = new Buffer("INFO STREAMS\r\n");
 
@@ -297,7 +345,7 @@ SeedlinkLatencyProxy.prototype.getLatencies = function() {
   var SLPACKET;
  
   // When the connection is established write INFO
-  socket.connect(Number(process.env.SEEDLINK_PORT) || this.configuration.SEEDLINK.PORT, process.env.SEEDLINK_HOST || this.configuration.SEEDLINK.HOST, function() {
+  socket.connect(server.port, server.host, function() {
     socket.write(INFO);
   });
 
@@ -318,57 +366,77 @@ SeedlinkLatencyProxy.prototype.getLatencies = function() {
       // The final record was received 
       if(SLPACKET === "SLINFO  ") {
 
-        // Update the global variable
-        this.cachedLatencies = this.parseRecords(latencyData.join(""));
-
-        if(this.configuration.__SORT__) {
-          this.cachedLatencies.sort(function(a, b) { return a.msLatency - b.msLatency });
-        }
-
         // Destroy the TCP socket
         socket.destroy();
 
+        // Update the global variable
+        return callback(null, parseRecords(latencyData.join("")));
+
       }
 
+      // Prepare to read the next record
       buffer = buffer.slice(520);
 
     }
 
-  }.bind(this));
+  });
 
   // Error on socket connection
-  socket.on("error", function(error) {
-    this.cachedLatencies = new Array();
-  }.bind(this));
-
-  // Set up for the next caching request
-  setTimeout(this.getLatencies.bind(this), this.configuration.REFRESH_INTERVAL);
+  socket.on("error", callback);
 
 }
 
-SeedlinkLatencyProxy.prototype.parseRecords = function(XMLString) {
+function HTTPError(response, statusCode, message) {
+
+  /*
+   * Function HTTPError
+   * Writes HTTP reponse to the client
+   */
+
+  response.writeHead(statusCode, {"Content-Type": "text/plain"});
+  response.write(message);
+  response.end();
+
+}
+
+function EnableCORS(response) {
+
+  /*
+   * Function EnableCORS
+   * Enables the cross origin headers
+   */
+
+  response.setHeader("Access-Control-Allow-Origin", "*");
+  response.setHeader("Access-Control-Allow-Methods", "GET");
+
+}
+
+function parseRecords(XMLString) {
 
   /* function SeedlinkLatencyProxy.extractXML
    * Extracts XML from mSEED log latencyData..
    */
 
+  // Third party library for pasing XML
+  const libxmljs = require("libxmljs");
+
   var latencies = new Array();
   var current = Date.now();
-  var end;
 
   // Go over all station nodes
   // For each station go over all streams
   libxmljs.parseXmlString(XMLString).root().childNodes().forEach(function(station) {
 
+    // Go over all children (streams)
     station.childNodes().forEach(function(stream) {
 
-      // Skip identifiers that are not D
+      // Skip identifiers that do not have quality D
       if(stream.attr("type").value() !== "D") {
         return;
       }
 
       // Get the end time from Seedlink
-      end = Date.parse(stream.attr("end_time").value() + " GMT");
+      var end = Date.parse(stream.attr("end_time").value() + " GMT");
 
       // Collect all latencies
       latencies.push({
@@ -377,7 +445,7 @@ SeedlinkLatencyProxy.prototype.parseRecords = function(XMLString) {
         "location": stream.attr("location").value(),
         "channel": stream.attr("seedname").value(),
         "end": new Date(end).toISOString(),
-        "msLatency": current - end,
+        "msLatency": Number(current - end),
       });
 
     });
@@ -393,6 +461,11 @@ module.exports.server = SeedlinkLatencyProxy;
 module.exports.__VERSION__ = __VERSION__;
 
 if(require.main === module) {
+
+  /*
+   * Function __main__
+   * Launched when the script is initialized
+   */
 
   const CONFIG = require("./config");
 

@@ -1,7 +1,7 @@
 {
-  "name": "nodejs-seedlink-latencies",
+  "name": "nodejs-seedlink-latencies-proxy",
   "version": "1.0.0",
-  "description": "NodeJS connector for pulling Seedlink latency information",
+  "description": "NodeJS proxy that exposes Seedlink latencies through a HTTP API",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -9,16 +9,23 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Jollyfant/nodejs-seedlink-latency-proxy.git"
+    "url": "git+https://github.com/Jollyfant/nodejs-seedlink-latencies-proxy.git"
   },
+  "keywords": [
+    "NodeJS",
+    "latency",
+    "Seedlink",
+    "HTTP",
+    "API"
+  ],
   "author": "Mathijs Koymans",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/Jollyfant/nodejs-seedlink-latency-proxy/issues"
+    "url": "https://github.com/Jollyfant/nodejs-seedlink-latencies-proxy/issues"
   },
-  "homepage": "https://github.com/Jollyfant/nodejs-seedlink-latency-proxy#readme",
+  "homepage": "https://github.com/Jollyfant/nodejs-seedlink-latencies-proxy#readme",
   "dependencies": {
-    "libmseedjs": "^1.0.0",
-    "libxmljs": "^0.18.7"
+    "libmseedjs": "^1.0.2",
+    "libxmljs": "^0.19.5"
   }
 }

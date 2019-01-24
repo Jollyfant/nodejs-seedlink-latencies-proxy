@@ -24,9 +24,7 @@ COPY . .
 
 # Set default environment variables
 ENV SERVICE_HOST="" \
-    SERVICE_PORT="" \
-    SEEDLINK_HOST="" \
-    SEEDLINK_PORT=""
+    SERVICE_PORT=""
 
 EXPOSE 8087
 

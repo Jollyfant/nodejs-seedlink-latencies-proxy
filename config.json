@@ -5,9 +5,12 @@
   "__NAME__": "SeedlinkLatencyProxy",
   "HOST": "0.0.0.0", 
   "PORT": 8087, 
-  "SEEDLINK": {
-    "HOST": "geofon.gfz-potsdam.de", 
-    "PORT": 18000
-  }, 
-  "REFRESH_INTERVAL": 60000
+  "REFRESH_INTERVAL": 60000,
+  "servers": [{
+    "host": "geofon.gfz-potsdam.de",
+    "port": 18000
+  }, {
+    "host": "eida.orfeus-eu.org",
+    "port": 18000
+  }]
 }
