@@ -10,14 +10,25 @@ info:
     name: "MIT"
     url: "https://opensource.org/licenses/MIT"
 host: "127.0.0.1"
-basePath: "/1/"
+basePath: "/"
 tags:
 - name: "latency"
   description: "HTTP API for Seedlink stream latencies"
 schemes:
 - "http"
 paths:
-  /latency:
+  /version:
+    get:
+      tags:
+      - "version"
+      summary: "Returns API version"
+      description: "Version of the latency API"
+      produces:
+      - "plain/text"
+      responses:
+        200:
+          description: "OK"
+  /:
     get:
       tags:
       - "latency"

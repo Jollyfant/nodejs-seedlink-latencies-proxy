@@ -16,6 +16,7 @@
 "use strict";
 
 const __VERSION__ = "1.0.0";
+const fs = require("fs");
 
 const SeedlinkLatencyProxy = function(configuration, callback) {
 
@@ -49,15 +50,22 @@ const SeedlinkLatencyProxy = function(configuration, callback) {
 
     // Write 204 No Content
     if(this.cachedLatencies.length === 0) {
-      return HTTPError(response, 204);
+      return HTTPResponse(response, 204);
     }
 
     // Handle each incoming request
     var uri = url.parse(request.url);
 
-    // Only root path is supported
-    if(uri.pathname !== "/") {
-      return HTTPError(response, 404, "Method not supported.");
+    // Check the requested path
+    switch(uri.pathname) {
+      case "/":
+        break;
+      case "/version":
+        return HTTPResponse(response, 200, __VERSION__);
+      case "/swagger.yml":
+        return fs.createReadStream("swagger.yml").pipe(response);
+      default:
+        return HTTPResponse(response, 404, "Not found.");
     }
 
     var queryObject = querystring.parse(uri.query);
@@ -67,9 +75,9 @@ const SeedlinkLatencyProxy = function(configuration, callback) {
       validateParameters(queryObject);
     } catch(exception) {
       if(this.configuration.__DEBUG__) {
-        return HTTPError(response, 400, exception.stack);
+        return HTTPResponse(response, 400, exception.stack);
       } else {
-        return HTTPError(response, 400, exception.message);
+        return HTTPResponse(response, 400, exception.message);
       }
     }
 
@@ -78,7 +86,7 @@ const SeedlinkLatencyProxy = function(configuration, callback) {
 
     // Write 204
     if(requestedLatencies.length === 0) {
-      return HTTPError(response, 204);
+      return HTTPResponse(response, 204);
     }
 
     // Write information to logfile
@@ -323,10 +331,10 @@ SeedlinkLatencyProxy.prototype.getLatencies = function(server, callback) {
 
 }
 
-function HTTPError(response, statusCode, message) {
+function HTTPResponse(response, statusCode, message) {
 
   /*
-   * Function HTTPError
+   * Function HTTPResponse
    * Writes HTTP reponse to the client
    */
 
