@@ -313,61 +313,13 @@ SeedlinkLatencyProxy.prototype.getLatencies = function(server, callback) {
    * Connects to Seedlink to get current stream latencies
    */
 
-  // Libraries
-  const { Socket } = require("net");
-  const mSEEDRecord = require("libmseedjs");
+  const SeedlinkInfoSocket = require("./lib/seedlinkInfoSocket");
 
-  const SL_INFO = new Buffer("INFO STREAMS\r\n");
-  const SL_END = new Buffer("SLINFO  ");
-
-  // Open a new TCP socket
-  const socket = new Socket()
-
-  // Create a new empty buffer
-  var buffer = new Buffer(0);
-
-  // Container for all latency data in ASCII endoded XML per record
-  var latencyData = new Array();
+  // Attach callback
+  const socket = new SeedlinkInfoSocket();
  
   // When the connection is established write INFO
-  socket.connect(server.port, server.host, function() {
-    socket.write(SL_INFO);
-  });
-
-  // Data is written over the socket
-  socket.on("data", function(data) {
-
-    // Extend the buffer with newly received data
-    buffer = Buffer.concat([buffer, data]);
-
-    // Keep reading 512 byte latencyData from the buffer
-    while(buffer.length >= 520) {
-
-      var SLPACKET = buffer.slice(0, 8);
-
-      // Extract the ASCII encoded XML from the mSEED record
-      latencyData.push(new mSEEDRecord(buffer.slice(8, 520)).data);
-
-      // The final record was received 
-      if(SLPACKET.equals(SL_END)) {
-
-        // Destroy the TCP socket
-        socket.destroy();
-
-        // Update the global variable
-        return callback(null, parseRecords(latencyData.join("")));
-
-      }
-
-      // Prepare to read the next record
-      buffer = buffer.slice(520);
-
-    }
-
-  });
-
-  // Error on socket connection delegate error
-  socket.on("error", callback);
+  socket.getLatencies(server, callback);
 
 }
 
@@ -393,52 +345,6 @@ function EnableCORS(response) {
 
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "GET");
-
-}
-
-function parseRecords(XMLString) {
-
-  /*
-   * Function SeedlinkLatencyProxy.extractXML
-   * Extracts XML from mSEED log latencyData..
-   */
-
-  // Third party library for pasing XML
-  const libxmljs = require("libxmljs");
-
-  var latencies = new Array();
-  var current = new Date();
-
-  // The lantency information is written as XML within mSEED
-  // Go over all station nodes
-  libxmljs.parseXmlString(XMLString).root().childNodes().forEach(function(station) {
-
-    // Go over all children (streams)
-    station.childNodes().forEach(function(stream) {
-
-      // Skip identifiers that do not have quality D
-      if(stream.attr("type").value() !== "D") {
-        return;
-      }
-
-      // Get the end time from Seedlink
-      var end = Date.parse(stream.attr("end_time").value() + " GMT");
-
-      // Collect all latencies
-      latencies.push({
-        "network": station.attr("network").value(),
-        "station": station.attr("name").value(),
-        "location": stream.attr("location").value(),
-        "channel": stream.attr("seedname").value(),
-        "end": new Date(end).toISOString(),
-        "msLatency": Number(current - end),
-      });
-
-    });
-
-  });
-
-  return latencies;
 
 }
 
