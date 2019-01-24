@@ -27,12 +27,12 @@ const SeedlinkLatencyProxy = function(configuration, callback) {
   const { createServer} = require("http");
   const url = require("url");
   const querystring = require("querystring");
+  const Logger = require("./lib/logger");
+
+  const logger = new Logger(__dirname);
 
   // Save the configuration
   this.configuration = configuration;
-
-  // Set up a logger
-  this.logger = this.setupLogger();
 
   // Class global for caching latencies
   this.cachedLatencies = new Array();
@@ -83,8 +83,7 @@ const SeedlinkLatencyProxy = function(configuration, callback) {
 
     // Write information to logfile
     response.on("finish", function() {
-      this.logger.write(JSON.stringify({
-        "timestamp": new Date().toISOString(),
+      logger.info({
         "method": request.method,
         "query": uri.query,
         "path": uri.pathname,
@@ -94,7 +93,7 @@ const SeedlinkLatencyProxy = function(configuration, callback) {
         "type": "HTTP Request",
         "msRequestTime": (Date.now() - initialized),
         "nLatencies": requestedLatencies.length
-      }) + "\n");
+      });
     }.bind(this));
 
     // OK! Write 200 JSON
@@ -105,8 +104,8 @@ const SeedlinkLatencyProxy = function(configuration, callback) {
   }.bind(this));
 
   // Get process environment variables (account for Docker env)
-  var host = process.env.SERVICE_HOST || this.configuration.HOST;
-  var port = Number(process.env.SERVICE_PORT) || this.configuration.PORT;
+  const host = process.env.SERVICE_HOST || this.configuration.HOST;
+  const port = Number(process.env.SERVICE_PORT) || this.configuration.PORT;
 
   // Listen to incoming HTTP connections
   Server.listen(port, host, function() {
@@ -115,22 +114,6 @@ const SeedlinkLatencyProxy = function(configuration, callback) {
 
   // Get initial latencies to cache
   this.refreshCacheFull();
-
-}
-
-SeedlinkLatencyProxy.prototype.setupLogger = function() {
-
-  /*
-   * Function SeedlinkLatencyProxy.setupLogger
-   * Sets up log directory and file for logging
-   */
-
-  const fs = require("fs");
-  const path = require("path");
-
-  // Create the log directory if it does not exist
-  fs.existsSync(path.join(__dirname, "logs")) || fs.mkdirSync(path.join(__dirname, "logs"));
-  return fs.createWriteStream(path.join(__dirname, "logs", "service.log"), {"flags": "a"});
 
 }
 
@@ -148,7 +131,7 @@ function validateParameters(queryObject) {
      * Returns boolean whether parameter attributes are valid
      */
   
-    const NETWORK_REGEXP = new RegExp(/^([0-9a-z?*]{1,2},){0,}([0-9a-z?*]{1,2})$/i)
+    const NETWORK_REGEXP = new RegExp(/^([0-9a-z?*]{1,2},){0,}([0-9a-z?*]{1,2})$/i);
     const STATION_REGEXP = new RegExp(/^([0-9a-z?*]{1,5},){0,}([0-9a-z?*]{1,5})$/i);
     const LOCATION_REGEXP = new RegExp(/^([0-9a-z-?*]{1,2},){0,}([0-9a-z-?*]{1,2})$/i);
     const CHANNEL_REGEXP = new RegExp(/^([0-9a-z?*]{1,3},){0,}([0-9a-z?*]{1,3})$/i);
@@ -330,23 +313,25 @@ SeedlinkLatencyProxy.prototype.getLatencies = function(server, callback) {
    * Connects to Seedlink to get current stream latencies
    */
 
-  // libmseedjs
-  const net = require("net");
+  // Libraries
+  const { Socket } = require("net");
   const mSEEDRecord = require("libmseedjs");
 
-  const INFO = new Buffer("INFO STREAMS\r\n");
+  const SL_INFO = new Buffer("INFO STREAMS\r\n");
+  const SL_END = new Buffer("SLINFO  ");
 
   // Open a new TCP socket
-  const socket = new net.Socket()
+  const socket = new Socket()
 
   // Create a new empty buffer
   var buffer = new Buffer(0);
+
+  // Container for all latency data in ASCII endoded XML per record
   var latencyData = new Array();
-  var SLPACKET;
  
   // When the connection is established write INFO
   socket.connect(server.port, server.host, function() {
-    socket.write(INFO);
+    socket.write(SL_INFO);
   });
 
   // Data is written over the socket
@@ -358,13 +343,13 @@ SeedlinkLatencyProxy.prototype.getLatencies = function(server, callback) {
     // Keep reading 512 byte latencyData from the buffer
     while(buffer.length >= 520) {
 
-      SLPACKET = buffer.slice(0, 8).toString();
+      var SLPACKET = buffer.slice(0, 8);
 
-      // Extract the ASCII from the record
+      // Extract the ASCII encoded XML from the mSEED record
       latencyData.push(new mSEEDRecord(buffer.slice(8, 520)).data);
 
       // The final record was received 
-      if(SLPACKET === "SLINFO  ") {
+      if(SLPACKET.equals(SL_END)) {
 
         // Destroy the TCP socket
         socket.destroy();
@@ -381,7 +366,7 @@ SeedlinkLatencyProxy.prototype.getLatencies = function(server, callback) {
 
   });
 
-  // Error on socket connection
+  // Error on socket connection delegate error
   socket.on("error", callback);
 
 }
@@ -413,7 +398,8 @@ function EnableCORS(response) {
 
 function parseRecords(XMLString) {
 
-  /* function SeedlinkLatencyProxy.extractXML
+  /*
+   * Function SeedlinkLatencyProxy.extractXML
    * Extracts XML from mSEED log latencyData..
    */
 
@@ -421,10 +407,10 @@ function parseRecords(XMLString) {
   const libxmljs = require("libxmljs");
 
   var latencies = new Array();
-  var current = Date.now();
+  var current = new Date();
 
+  // The lantency information is written as XML within mSEED
   // Go over all station nodes
-  // For each station go over all streams
   libxmljs.parseXmlString(XMLString).root().childNodes().forEach(function(station) {
 
     // Go over all children (streams)
