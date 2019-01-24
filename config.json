@@ -1,8 +1,9 @@
 {
   "__SORT__": true,
   "__CORS__": true,
-  "__DEBUG__": false,
+  "__DEBUG__": true,
   "__NAME__": "SeedlinkLatencyProxy",
+  "__CLOSED__": false,
   "HOST": "0.0.0.0", 
   "PORT": 8087, 
   "REFRESH_INTERVAL": 600000,

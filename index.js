@@ -16,7 +16,14 @@
 "use strict";
 
 const __VERSION__ = "1.0.0";
-const fs = require("fs");
+
+const { createServer} = require("http");
+const { createReadStream } = require("fs");
+const url = require("url");
+const querystring = require("querystring");
+
+const Logger = require("./lib/logger");
+const SeedlinkInfoSocket = require("./lib/seedlinkInfoSocket");
 
 const SeedlinkLatencyProxy = function(configuration, callback) {
 
@@ -25,12 +32,8 @@ const SeedlinkLatencyProxy = function(configuration, callback) {
    * NodeJS proxy for getting Seedlink latency information
    */
 
-  const { createServer} = require("http");
-  const url = require("url");
-  const querystring = require("querystring");
-  const Logger = require("./lib/logger");
-
-  const logger = new Logger(__dirname);
+  // Create a logger
+  this.logger = new Logger(__dirname);
 
   // Save the configuration
   this.configuration = configuration;
@@ -39,89 +42,94 @@ const SeedlinkLatencyProxy = function(configuration, callback) {
   this.cachedLatencies = new Array();
 
   // Create a HTTP server
-  const Server = createServer(function(request, response) {
-
-    var initialized = Date.now();
-
-    // Enable CORS headers when required
-    if(this.configuration.__CORS__) {
-      EnableCORS(response);
-    }
-
-    // Write 204 No Content
-    if(this.cachedLatencies.length === 0) {
-      return HTTPResponse(response, 204);
-    }
-
-    // Handle each incoming request
-    var uri = url.parse(request.url);
-
-    // Check the requested path
-    switch(uri.pathname) {
-      case "/":
-        break;
-      case "/version":
-        return HTTPResponse(response, 200, __VERSION__);
-      case "/swagger.yml":
-        return fs.createReadStream("swagger.yml").pipe(response);
-      default:
-        return HTTPResponse(response, 404, "Not found.");
-    }
-
-    var queryObject = querystring.parse(uri.query);
-
-    // Validate the user input
-    try {
-      validateParameters(queryObject);
-    } catch(exception) {
-      if(this.configuration.__DEBUG__) {
-        return HTTPResponse(response, 400, exception.stack);
-      } else {
-        return HTTPResponse(response, 400, exception.message);
-      }
-    }
-
-    // Make sure to filter the latencies to the request
-    var requestedLatencies = this.filterLatencies(queryObject);
-
-    // Write 204
-    if(requestedLatencies.length === 0) {
-      return HTTPResponse(response, 204);
-    }
-
-    // Write information to logfile
-    response.on("finish", function() {
-      logger.info({
-        "method": request.method,
-        "query": uri.query,
-        "path": uri.pathname,
-        "client": request.headers["x-forwarded-for"] || request.connection.remoteAddress,
-        "agent": request.headers["user-agent"] || null,
-        "statusCode": response.statusCode,
-        "type": "HTTP Request",
-        "msRequestTime": (Date.now() - initialized),
-        "nLatencies": requestedLatencies.length
-      });
-    }.bind(this));
-
-    // OK! Write 200 JSON
-    response.writeHead(200, {"Content-Type": "application/json"});
-    response.write(JSON.stringify(requestedLatencies));
-    response.end();
-
-  }.bind(this));
+  const Server = createServer(this.HTTPServer.bind(this));
 
   // Get process environment variables (account for Docker env)
   const host = process.env.SERVICE_HOST || this.configuration.HOST;
   const port = Number(process.env.SERVICE_PORT) || this.configuration.PORT;
 
   // Listen to incoming HTTP connections
-  Server.listen(port, host, function() {
-    callback(configuration.__NAME__, host, port);
-  });
+  Server.listen(port, host, callback);
 
   // Get initial latencies to cache
   this.refreshCacheFull();
+
+}
+
+SeedlinkLatencyProxy.prototype.HTTPServer = function(request, response) {
+
+  /*
+   * Function SeedlinkLatencyProxy::HTTPServer
+   * Creates the HTTP Server listening for connections
+   */
+
+  const initialized = Date.now();
+  const uri = url.parse(request.url);
+
+  // Enable CORS headers when required
+  if(this.configuration.__CORS__) {
+    EnableCORS(response);
+  }
+
+  // Write information to logfile
+  response.on("finish", function() {
+    this.logger.info({
+      "method": request.method,
+      "query": uri.query,
+      "path": uri.pathname,
+      "client": request.headers["x-forwarded-for"] || request.connection.remoteAddress || null,
+      "agent": request.headers["user-agent"] || null,
+      "statusCode": response.statusCode,
+      "type": "HTTP Request",
+      "msRequestTime": (Date.now() - initialized)
+    });
+  }.bind(this));
+
+  // Check the requested path
+  switch(uri.pathname) {
+    case "/":
+      break;
+    case "/version":
+      return HTTPResponse(response, 200, __VERSION__);
+    case "/swagger.yml":
+      return createReadStream("swagger.yml").pipe(response);
+    default:
+      return HTTPResponse(response, 404, "Not found.");
+  }
+
+  // Service is closed
+  if(this.configuration.__CLOSED__) {
+    return HTTPResponse(response, 503, "The service is currently closed for maintenance.");
+  }
+
+  // No latencies in the cache: write 204 No Content
+  if(this.cachedLatencies.length === 0) {
+    return HTTPResponse(response, 204);
+  }
+
+  var queryObject = querystring.parse(uri.query);
+
+  // Validate the user input
+  try {
+    validateParameters(queryObject);
+  } catch(exception) {
+    if(this.configuration.__DEBUG__) {
+      return HTTPResponse(response, 400, exception.stack);
+    } else {
+      return HTTPResponse(response, 400, exception.message);
+    }
+  }
+
+  // Make sure to filter the latencies to the request
+  var requestedLatencies = this.filterLatencies(queryObject);
+
+  // Write 204
+  if(requestedLatencies.length === 0) {
+    return HTTPResponse(response, 204);
+  }
+
+  // OK! Write 200 JSON
+  HTTPResponse(response, 200, requestedLatencies);
 
 }
 
@@ -162,7 +170,14 @@ function validateParameters(queryObject) {
   }
 
   // Parameters allowed by the service
-  const ALLOWED_PARAMETERS = new Array("network", "station", "location", "channel", "min", "max");
+  const ALLOWED_PARAMETERS = new Array(
+    "network",
+    "station",
+    "location",
+    "channel",
+    "min",
+    "max"
+  );
 
   // Check if all parameters are allowed
   Object.keys(queryObject).forEach(function(x) {
@@ -172,8 +187,13 @@ function validateParameters(queryObject) {
       throw new Error("Query parameter " + x + " is not supported.");
     }
 
-    if(!isValidParameter(x, queryObject[x])) {
-      throw new Error("Query parameter " + x + " is not valid.");
+  });
+
+  // Check value with RegExp
+  Object.entries(queryObject).forEach(function(x) {
+
+    if(!isValidParameter(...x)) {
+      throw new Error("Query parameter " + x.join(" with value ") + " is not valid.");
     }
 
   });
@@ -221,7 +241,7 @@ SeedlinkLatencyProxy.prototype.filterLatencies = function(queryObject) {
   }
 
   // If all fields are missing return everything
-  if(!queryObject.network && !queryObject.station && !queryObject.location && !queryObject.channel && !queryObject.min && !queryObject.max) {
+  if(Object.keys(queryObject).length === 0) {
     return this.cachedLatencies;
   }
 
@@ -243,7 +263,7 @@ SeedlinkLatencyProxy.prototype.filterLatencies = function(queryObject) {
       bool &= matchArray(latency.channel, queryObject.channel.split(","));
     }
 
-    // Latency range requested
+    // A latency range requested
     if(bool && queryObject.min) {
       bool &= Number(queryObject.min) <= latency.msLatency;
     }
@@ -332,9 +352,6 @@ SeedlinkLatencyProxy.prototype.getLatencies = function(server, callback) {
    * Connects to Seedlink to get current stream latencies
    */
 
-  const SeedlinkInfoSocket = require("./lib/seedlinkInfoSocket");
-
-  // Attach callback
   const socket = new SeedlinkInfoSocket();
  
   // When the connection is established write INFO
@@ -349,7 +366,32 @@ function HTTPResponse(response, statusCode, message) {
    * Writes HTTP reponse to the client
    */
 
-  response.writeHead(statusCode, {"Content-Type": "text/plain"});
+  function getContentType(x) {
+
+    /*
+     * Function HTTPResponse::getContentType
+     * Automatically determines the content type between JSON or text
+     */
+
+    switch(typeof(x)) {
+      case "string":
+      case "undefined":
+        return "text/plain";
+      case "object":
+        return "application/json";
+    }
+
+  }
+
+  var contentType = getContentType(message);
+
+  // Stringify objects
+  if(typeof(message) === "object") {
+    message = JSON.stringify(message);
+  }
+
+  // Write the response
+  response.writeHead(statusCode, {"Content-Type": contentType});
   response.write(message);
   response.end();
 
@@ -362,6 +404,7 @@ function EnableCORS(response) {
    * Enables the cross origin headers
    */
 
+  // CORS settings
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "GET");
 
@@ -381,8 +424,8 @@ if(require.main === module) {
   const CONFIG = require("./config");
 
   // Start up the WFCatalog
-  new module.exports.server(CONFIG, function(name, host, port) {
-    console.log(name + " microservice has been started on " + host + ":" + port);
+  new module.exports.server(CONFIG, function() {
+    console.log(CONFIG.__NAME__ + " microservice has been started on " + CONFIG.HOST + ":" + CONFIG.PORT);
   });
 
 }
