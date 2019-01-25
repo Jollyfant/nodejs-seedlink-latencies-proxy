@@ -6,7 +6,7 @@
  * Supported parameters: network, station, latency, channel
  *
  * Copyright: ORFEUS Data Center
- * Author: Mathijs Koymans
+ * Author: Vincent van der Heiden, Mathijs Koymans
  * Licensed under MIT
  *
  * Updated: 2019-01-24
