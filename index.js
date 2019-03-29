@@ -9,7 +9,7 @@
  * Author: Vincent van der Heiden, Mathijs Koymans
  * Licensed under MIT
  *
- * Updated: 2019-01-24
+ * Updated: 2019-03-29
  *
  */
 
@@ -19,11 +19,6 @@ const __VERSION__ = "1.0.0";
 
 const { createServer} = require("http");
 const { createReadStream } = require("fs");
-const url = require("url");
-const querystring = require("querystring");
-
-const Logger = require("./lib/logger");
-const SeedlinkInfoSocket = require("./lib/seedlinkInfoSocket");
 
 const SeedlinkLatencyProxy = function(configuration, callback) {
 
@@ -32,6 +27,8 @@ const SeedlinkLatencyProxy = function(configuration, callback) {
    * NodeJS proxy for getting Seedlink latency information
    */
 
+  const Logger = require("./lib/logger");
+ 
   // Create a logger
   this.logger = new Logger(__dirname);
 
@@ -62,6 +59,9 @@ SeedlinkLatencyProxy.prototype.HTTPServer = function(request, response) {
    * Function SeedlinkLatencyProxy::HTTPServer
    * Creates the HTTP Server listening for connections
    */
+
+  const url = require("url");
+  const querystring = require("querystring");
 
   const initialized = Date.now();
   const uri = url.parse(request.url);
@@ -351,6 +351,8 @@ SeedlinkLatencyProxy.prototype.getLatencies = function(server, callback) {
    * Function SeedlinkLatencyProxy.getLatencies
    * Connects to Seedlink to get current stream latencies
    */
+
+  const SeedlinkInfoSocket = require("./lib/seedlinkInfoSocket");
 
   const socket = new SeedlinkInfoSocket();
  
