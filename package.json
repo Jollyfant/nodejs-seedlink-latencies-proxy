@@ -26,6 +26,6 @@
   "homepage": "https://github.com/Jollyfant/nodejs-seedlink-latencies-proxy#readme",
   "dependencies": {
     "libmseedjs": "^1.0.2",
-    "libxmljs": "^0.19.5"
+    "libxmljs": "^1.0.9"
   }
 }

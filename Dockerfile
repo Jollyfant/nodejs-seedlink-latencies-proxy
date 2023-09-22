@@ -6,7 +6,7 @@
 # And run the container (may omit the -e flags):
 # $ docker run --rm -p 8087:8087 -e "SERVICE_PORT=8087" -e "SERVICE_HOST=0.0.0.0" seedlink-latencies:1.0
 
-FROM node:8
+FROM node:20
 
 # Add metadata
 LABEL maintainer="Mathijs Koymans"
