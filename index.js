@@ -390,6 +390,8 @@ function HTTPResponse(response, statusCode, message) {
   // Stringify objects
   if(typeof(message) === "object") {
     message = JSON.stringify(message);
+  } else if(typeof(message) === "undefined") {
+    message = "";
   }
 
   // Write the response
